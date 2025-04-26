@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Server.Todo;
 
 [ApiController]
 [Route("api/[controller]")]
-public class TodoController : ControllerBase
+public class TodoController(TodoContext context) : ControllerBase
 {
+    private readonly TodoContext _context = context;
+
     /// <summary>
     /// Retrieves all todo items.
     /// </summary>
@@ -14,7 +17,11 @@ public class TodoController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<TodoItemDTO>), 200)]
     public async Task<ActionResult<IEnumerable<TodoItemDTO>>> GetTodoItems()
     {
-        throw new NotImplementedException();
+        IEnumerable<TodoItemDTO> todos = await _context.TodoItems
+                .Select(item => TodoItemToDTO(item))
+                .ToListAsync();
+
+        return Ok(todos);
     }
 
     /// <summary>
@@ -28,7 +35,17 @@ public class TodoController : ControllerBase
     [ProducesResponseType(typeof(void), 404)]
     public async Task<ActionResult<TodoItemDTO>> GetTodoItemById(int id)
     {
-        throw new NotImplementedException();
+        TodoItem? item = await _context.TodoItems.FindAsync(id);
+
+        if (item is null)
+        {
+            return NotFound();
+        }
+        else
+        {
+            TodoItemDTO dto = TodoItemToDTO(item);
+            return Ok(dto);
+        }
     }
 
     /// <summary>
@@ -40,7 +57,19 @@ public class TodoController : ControllerBase
     [ProducesResponseType(typeof(TodoItemDTO), 201)]
     public async Task<ActionResult<TodoItemDTO>> CreateTodoItem(TodoItemCreateData data)
     {
-        throw new NotImplementedException();
+        TodoItem item = new()
+        {
+            Name = data.Name,
+            IsComplete = data.IsComplete,
+        };
+
+        _context.TodoItems.Add(item);
+
+        await _context.SaveChangesAsync();
+
+        TodoItemDTO dto = TodoItemToDTO(item);
+
+        return CreatedAtAction(nameof(GetTodoItemById), new { id = dto.Id }, dto);
     }
 
     /// <summary>
@@ -55,7 +84,44 @@ public class TodoController : ControllerBase
     [ProducesResponseType(typeof(void), 404)]
     public async Task<ActionResult> UpdateTodoItem(int id, TodoItemUpdateData data)
     {
-        throw new NotImplementedException();
+        int maxAttempts = 3;
+        Random rnd = new();
+
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            TodoItem? item = await _context.TodoItems.FindAsync(id);
+
+            if (item is null)
+            {
+                return NotFound();
+            }
+
+            if (data.Name is not null)
+            {
+                item.Name = data.Name;
+            }
+
+            if (data.IsComplete is not null)
+            {
+                item.IsComplete = (bool)data.IsComplete;
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                return NoContent();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                if (ex.Entries.Single().State == EntityState.Modified)
+                {
+                    int interval = rnd.Next(100);
+                    await Task.Delay(interval);
+                }
+            }
+        }
+
+        throw new Exception();
     }
 
     /// <summary>
@@ -69,6 +135,31 @@ public class TodoController : ControllerBase
     [ProducesResponseType(typeof(void), 404)]
     public async Task<ActionResult> DeleteTodoItem(int id)
     {
-        throw new NotImplementedException();
+        TodoItem? item = await _context.TodoItems.FindAsync(id);
+
+        if (item is null)
+        {
+            return NotFound();
+        }
+
+        _context.TodoItems.Remove(item);
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException) { }
+
+        return NoContent();
+    }
+
+    private static TodoItemDTO TodoItemToDTO(TodoItem item)
+    {
+        return new TodoItemDTO
+        {
+            Id = item.Id,
+            Name = item.Name,
+            IsComplete = item.IsComplete,
+        };
     }
 }
