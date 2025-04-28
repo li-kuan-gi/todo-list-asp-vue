@@ -24,6 +24,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseStaticFiles();
+app.MapGet("/", () => Results.File("index.html", "text/html"));
+
 app.UseAuthorization();
 
 app.MapControllers();
