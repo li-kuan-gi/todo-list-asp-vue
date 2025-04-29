@@ -10,7 +10,7 @@ builder.Services.AddOpenApiDocument();
 
 builder.Services.AddDbContext<TodoContext>(opt =>
 {
-    opt.UseInMemoryDatabase("TodoList");
+    opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
 
 var app = builder.Build();
